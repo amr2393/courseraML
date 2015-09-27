@@ -1,0 +1,110 @@
+---
+title: "Practical Machine Learning Assignment"
+output: html_document
+---
+
+## Loading relevant libraries and implementing basic settings
+First we load useful libraries and set some parameters (descriptions inline where needed).
+
+```{r, message=F, warning=F}
+library(caret)
+library(randomForest)
+
+echo = TRUE                                    # Always make code visible
+options(scipen = 1)                            # Turn off scientific notations for numbers
+knitr::opts_chunk$set(fig.path = "figure/")    # Set the default figure output dir
+knitr::opts_chunk$set(cache=TRUE)              # Caching always on
+```
+
+## Data load
+Check if data is present, otherwise download it, then load it.
+```{r}
+data.file.train = "training.csv"
+data.file.test = "testing.csv"
+
+# Check if the data file exists locally, if not retrieve
+if ( !file.exists(data.file.train) || !file.exists(data.file.test)) {
+  print("Downloading file...") 
+
+  # Retrieve zip data from URL
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile=data.file.train, method = "curl") 
+  
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile=data.file.test, method = "curl")  
+
+}
+
+training = read.csv(data.file.train)
+testing = read.csv(data.file.test)
+
+```
+
+## Data exploration and feature selection
+
+First we look at a summary of the training data (results hidden in the interest of space).
+```{r, results='hide'}
+summary(training)
+```
+
+The data contains `r nrow(training)` entries with `r ncol(training)` columns each (including the class we are trying to predict). Many of these should be disregarded from the analysis. For example, many are majority _NA_, or blank space (19216/19622 = `r round(100*19216/19622, digits =2)`%). These are mostly summary statistics, e.g. \"min\_\*\*\", "avg\_\*\*\" etc. and so their information should exist in other predictors. Similarly, the first 7 columns are housekeeping data (row ID, username, etc.) and should be removed.
+
+```{r}
+tooManyNA = which(colSums(is.na(training)) > 19000 | colSums(training == "") > 19000)
+columnsToRemove = c( tooManyNA, 1:7)
+
+training = training[,-columnsToRemove]
+```
+
+We can now look at the data again:
+```{r}
+summary(training)
+```
+
+The data now contains `r ncol(training)-1` predictors which are all numeric and contain no _NA_s. Given the ratio of data points to predictors is so large, no further pre-processing will be carried out.
+
+## Model Cross-validation
+
+We will use a random forest classifier to handle the unscaled predictors with resorting to preprocessing. First we partition the training data into 10 folds, train a model for each fold and store the assosciated predictions: 
+
+```{r}
+K = 10
+
+trainFolds = createFolds(training$classe, k = K, returnTrain = T) 
+resultsTrue = list()
+resultsPred = list()
+accuracy = c()
+
+for (k in 1:K) {
+  
+  fit = randomForest(classe ~ . , data = training[ trainFolds[[k]],], ntree = 100)
+  
+  resultsTrue[[k]] = training[-trainFolds[[k]], "classe"]
+  resultsPred[[k]] = predict(fit, training[-trainFolds[[k]], -53])
+
+  accuracy[k] = mean(resultsTrue[[k]] == resultsPred[[k]])  
+}
+  
+meanAccuracy = round(mean(accuracy) * 100, digits = 2)
+error = round(100*qt(0.975,df=K-1)*sd(accuracy)/sqrt(K), digits = 2)
+```
+
+So the expected out of sample accuracy is `r meanAccuracy`% $\pm$ `r error` (95% confidence interval). Finally, we train a model on the full data and apply to the test set (with predicors removed as in the train set). Finally, the answers are written as described in the instructions. 
+
+```{r}
+
+fit = randomForest(classe ~ . , data = training, ntree = 100)
+
+testing = testing[,-columnsToRemove]
+
+answers = predict(fit, testing[, -53])
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+
+```
