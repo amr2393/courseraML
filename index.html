@@ -235,7 +235,7 @@ for (k in 1:K) {
   
 meanAccuracy = round(mean(accuracy) * 100, digits = 2)
 error = round(100*qt(0.975,df=K-1)*sd(accuracy)/sqrt(K), digits = 2)</code></pre>
-<p>So the expected out of sample accuracy is 99.62% <span class="math">\(\pm\)</span> 0.11 (95% confidence interval). Finally, we train a model on the full data and apply to the test set (with predicors removed as in the train set). Finally, the answers are written as described in the instructions.</p>
+<p>So the expected out of sample accuracy is 99.62% <span class="math">\(\pm\)</span> 0.11 (95% confidence interval). The expected out of sample error is: 1 - accuracy = 0.38%. Finally, we train a model on the full data and apply to the test set (with predicors removed as in the train set). Finally, the answers are written as described in the instructions.</p>
 <pre class="r"><code>fit = randomForest(classe ~ . , data = training, ntree = 100)
 
 testing = testing[,-columnsToRemove]
